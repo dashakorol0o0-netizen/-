@@ -1,10 +1,9 @@
 import os
 import telebot
-import yt_dlp
 
-# Используем переменную окружения для безопасности
-TOKEN = os.getenv('BOT_TOKEN')
-bot = telebot.TeleBot(TOKEN)
+# Бот должен брать токен из настроек Render, а не просто цифры
+token = os.getenv('BOT_TOKEN') 
+bot = telebot.TeleBot(token)
 
 @bot.message_handler(commands=['start'])
 def start(message):
