@@ -1,5 +1,6 @@
 import os
 import telebot
+import yt_dlp  # Обязательно добавь это, если не было!
 
 # Бот должен брать токен из настроек Render, а не просто цифры
 token = os.getenv('BOT_TOKEN') 
