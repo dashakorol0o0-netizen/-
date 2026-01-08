@@ -6,7 +6,7 @@ from threading import Thread
 
 app = Flask('')
 @app.route('/')
-def home(): return "Бот работает!"
+def home(): return "Бот-комбайн в строю!"
 def run(): app.run(host='0.0.0.0', port=8080)
 
 token = os.getenv('BOT_TOKEN') 
@@ -14,61 +14,63 @@ bot = telebot.TeleBot(token)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Я готов! Присылай ссылки на YouTube, TikTok (видео/фото) или Instagram.")
+    bot.reply_to(message, "Я готов! Кидай TikTok, YouTube или Instagram. Попробуем еще раз! 🚀")
 
 @bot.message_handler(func=lambda message: True)
 def handle_media(message):
     url = message.text
     if "http" not in url: return
 
-    sent_msg = bot.send_message(message.chat.id, "Начинаю загрузку... ⏳")
+    sent_msg = bot.send_message(message.chat.id, "Работаю над этим... 🛠")
     
     try:
         if not os.path.exists('downloads'): os.makedirs('downloads')
 
         ydl_opts = {
             'outtmpl': 'downloads/%(id)s.%(ext)s',
-            # Ограничиваем до 720p и MP4, чтобы файл не превысил 50МБ и открывался везде
-            'format': 'best[height<=720][ext=mp4]/bestvideo[height<=720]+bestaudio/best',
-            'merge_output_format': 'mp4',
+            'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best',
+            'noplaylist': True,
+            'cookiefile': 'cookies.txt',
             'quiet': True,
-            'cookiefile': 'cookies.txt', 
+            # Маскируемся под обычный браузер
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'referer': 'https://www.tiktok.com/',
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Пытаемся извлечь информацию и скачать
+            # Сначала просто извлекаем инфу, чтобы понять, что это
             info = ydl.extract_info(url, download=True)
             
-            # Проверяем папку на наличие файлов (картинки или видео)
-            all_files = [os.path.join('downloads', f) for f in os.listdir('downloads')]
+            # Собираем все файлы, которые появились в папке
+            files = [os.path.join('downloads', f) for f in os.listdir('downloads')]
             
-            # 1. Проверка на TikTok ФОТО (слайд-шоу)
-            photos = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+            # Проверка на КАРТИНКИ (TikTok слайд-шоу)
+            photos = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+            
             if photos:
                 media_group = []
-                for p in sorted(photos)[:10]: # Максимум 10 фото за раз
+                for p in sorted(photos)[:10]:
                     with open(p, 'rb') as f:
                         media_group.append(telebot.types.InputMediaPhoto(f.read()))
                 bot.send_media_group(message.chat.id, media_group)
-            
-            # 2. Проверка на ВИДЕО (YouTube, Shorts, Reels, TikTok видео)
             else:
-                video_files = [f for f in all_files if f.lower().endswith(('.mp4', '.mkv', '.webm', '.mov'))]
+                # Проверка на ВИДЕО
+                video_files = [f for f in files if f.lower().endswith(('.mp4', '.mkv', '.webm', '.mov'))]
                 if video_files:
-                    # Берем самый большой файл из скачанных (обычно это и есть видео после склейки)
-                    target_video = max(video_files, key=os.path.getsize)
-                    with open(target_video, 'rb') as video:
+                    # Берем самый свежий или большой файл
+                    target = max(video_files, key=os.path.getsize)
+                    with open(target, 'rb') as video:
                         bot.send_video(message.chat.id, video, supports_streaming=True)
                 else:
-                    bot.reply_to(message, "Не удалось найти файл видео. Возможно, он слишком тяжелый.")
+                    bot.reply_to(message, "Файлы не найдены. Попробуй другую ссылку.")
 
-        # Очистка папки downloads
+        # Чистим папку
         for file in os.listdir('downloads'):
             os.remove(os.path.join('downloads', file))
 
     except Exception as e:
         print(f"Ошибка: {e}")
-        bot.reply_to(message, "Ошибка при скачивании. Проверь, не закрыт ли аккаунт (для Instagram) и не удалено ли видео.")
+        bot.reply_to(message, f"Бля, опять ошибка. Скорее всего TikTok блочит сервер. Попробуй еще раз через минуту.")
     finally:
         try: bot.delete_message(message.chat.id, sent_msg.message_id)
         except: pass
